@@ -1,0 +1,6 @@
+# YOLO26 exports. Ultralytics and its weights are AGPL-3.0.
+-r hub.txt
+ultralytics>=8.3
+onnxconverter-common>=1.14
+onnxruntime>=1.20
+onnxslim>=0.1

@@ -1,0 +1,66 @@
+{
+  "name": "@youni/onnxweb-server",
+  "version": "1.0.0",
+  "description": "The server side of @youni/onnxweb-*: serves models to the browser libraries (ranges, catalogue, Hub mirror), makes the ones no one publishes in ONNX (download, conversion, quantization, weights cut into browser-sized files) with an embedded Python it manages, and mounts as a Vite plugin or a standalone server.",
+  "license": "Apache-2.0",
+  "author": "Youni",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "files": [
+    "dist",
+    "python",
+    "README.md",
+    "LICENSE"
+  ],
+  "bin": {
+    "onnxweb-server": "./dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./vite": {
+      "types": "./dist/vite.d.ts",
+      "import": "./dist/vite.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "clean": "node -e \"fs.rmSync('dist',{recursive:true,force:true})\"",
+    "build": "npm run clean && tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "prepublishOnly": "npm run typecheck && npm run test && npm run build",
+    "lint": "eslint src tests"
+  },
+  "peerDependencies": {
+    "vite": ">=5"
+  },
+  "peerDependenciesMeta": {
+    "vite": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsup": "^8.3.5",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8",
+    "eslint": "^9.36.0",
+    "@eslint/js": "^9.36.0",
+    "typescript-eslint": "^8.44.0"
+  },
+  "keywords": [
+    "onnx",
+    "model-server",
+    "vite-plugin",
+    "huggingface",
+    "optimum",
+    "conversion"
+  ]
+}

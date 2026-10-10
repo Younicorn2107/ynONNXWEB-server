@@ -1,0 +1,3 @@
+# Hub downloads and ONNX graph surgery (language models from onnx-community).
+huggingface_hub>=0.30
+onnx>=1.17

@@ -1,0 +1,9 @@
+# Checkpoints with no published ONNX: exported with Optimum, quantized with
+# ONNX Runtime's dynamic quantizer. Pulls PyTorch (CPU is enough).
+-r hub.txt
+optimum-onnx[onnxruntime]>=0.1
+transformers>=4.45,<5
+torch>=2.4
+safetensors>=0.4
+sentencepiece>=0.2
+protobuf>=4
