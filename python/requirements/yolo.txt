@@ -1,6 +1,8 @@
 # YOLO26 exports. Ultralytics and its weights are AGPL-3.0.
+# Exact versions (see hub.txt). Ultralytics had compromised releases on PyPI
+# (8.3.41, 8.3.42, December 2024): never install it from an open range.
 -r hub.txt
-ultralytics>=8.3
-onnxconverter-common>=1.14
-onnxruntime>=1.20
-onnxslim>=0.1
+ultralytics==8.4.157
+onnxconverter-common==1.16.0
+onnxruntime==1.31.0
+onnxslim==0.1.96

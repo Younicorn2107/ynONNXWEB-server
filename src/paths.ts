@@ -28,6 +28,11 @@ export function mirrorRoot(): string {
   return process.env["YNONNXWEB_HF_MIRROR"] ?? join(cache(), "hf-mirror");
 }
 
+/** Bench corpora: `{name}.wav` and `{name}.txt`, the reference. */
+export function corpusRoot(): string {
+  return process.env["YNONNXWEB_CORPUS"] ?? join(cache(), "corpus");
+}
+
 /** The virtual environment this package installs its Python dependencies into. */
 export function pythonEnvRoot(): string {
   return process.env["YNONNXWEB_PYTHON_ENV"] ?? join(cache(), "python");

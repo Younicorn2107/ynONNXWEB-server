@@ -1,3 +1,8 @@
 # Hub downloads and ONNX graph surgery (language models from onnx-community).
-huggingface_hub>=0.30
-onnx>=1.17
+# Exact versions: these are installed and then run by a request to the
+# server, so a newer (possibly compromised) release must never be picked up
+# on its own. Raise them deliberately, after a test run.
+huggingface_hub==0.36.2
+onnx==1.23.2
+numpy==2.5.3
+protobuf==7.36.2

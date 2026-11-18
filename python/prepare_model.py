@@ -49,18 +49,20 @@ import cache_models  # noqa: E402  (the YOLO exports and the cache layout)
 
 ROOT = cache_models.ROOT
 
-# Catalogue name → Hugging Face checkpoint, Optimum task, architecture.
-HF_RECIPES: dict[str, tuple[str, str, str]] = {
-    "llmlingua2-small": ("microsoft/llmlingua-2-bert-base-multilingual-cased-meetingbank", "token-classification", "bert"),
-    "llmlingua2-large": ("microsoft/llmlingua-2-xlm-roberta-large-meetingbank", "token-classification", "xlm-roberta"),
-    "mt5-xlsum": ("csebuetnlp/mT5_multilingual_XLSum", "text2text-generation-with-past", "mt5"),
-    "barthez-orangesum": ("moussaKam/barthez-orangesum-abstract", "text2text-generation-with-past", "bart"),
-    "kredor-punctuate-all": ("kredor/punctuate-all", "token-classification", "xlm-roberta"),
-    "flan-t5-large-grammar": ("pszemraj/flan-t5-large-grammar-synthesis", "text2text-generation-with-past", "t5"),
+# Catalogue name → Hugging Face checkpoint, Optimum task, architecture, commit.
+# Pinned to a commit: a recipe runs on a request to the server, and a
+# checkpoint changed upstream (or taken over) must not be exported unseen.
+HF_RECIPES: dict[str, tuple[str, str, str, str]] = {
+    "llmlingua2-small": ("microsoft/llmlingua-2-bert-base-multilingual-cased-meetingbank", "token-classification", "bert", "5f0c82792b7ea14c6484e015b6a072009496b7f2"),
+    "llmlingua2-large": ("microsoft/llmlingua-2-xlm-roberta-large-meetingbank", "token-classification", "xlm-roberta", "ebaba9b0e874dadd3003ffcff828e4397e568089"),
+    "mt5-xlsum": ("csebuetnlp/mT5_multilingual_XLSum", "text2text-generation-with-past", "mt5", "2437a524effdbadc327ced84595508f1e32025b3"),
+    "barthez-orangesum": ("moussaKam/barthez-orangesum-abstract", "text2text-generation-with-past", "bart", "2f4969c2f16bf27aaddb87bf9b862ccead48135b"),
+    "kredor-punctuate-all": ("kredor/punctuate-all", "token-classification", "xlm-roberta", "0fe37019de3f5e4fbd83289fd94e07fa588e47df"),
+    "flan-t5-large-grammar": ("pszemraj/flan-t5-large-grammar-synthesis", "text2text-generation-with-past", "t5", "924f44b5b7403d0727880a72f45714f0a70379a0"),
     # The embedder's French model: the encoder's hidden states, mean-pooled by the page.
-    "solon-embeddings-large": ("OrdalieTech/Solon-embeddings-large-0.1", "feature-extraction", "xlm-roberta"),
+    "solon-embeddings-large": ("OrdalieTech/Solon-embeddings-large-0.1", "feature-extraction", "xlm-roberta", "9f6465f6ea2f6d10c6294bc15d84edf87d47cdef"),
     # The seq2seq reranker: one decoder step from the start token, so no KV cache.
-    "monot5-base": ("castorini/monot5-base-msmarco", "text2text-generation", "t5"),
+    "monot5-base": ("castorini/monot5-base-msmarco", "text2text-generation", "t5", "891f24ce967761cac53e544481e7aeaf3c1fad80"),
 }
 
 ROLES = [
@@ -221,17 +223,17 @@ def export_llm(repo: str, precision: str) -> Path:
 
 
 def export_hf(name: str, precision: str) -> Path:
-    hf_id, task, architecture = HF_RECIPES[name]
+    hf_id, task, architecture, revision = HF_RECIPES[name]
     from optimum.exporters.onnx import main_export
     from transformers import AutoTokenizer
 
     with tempfile.TemporaryDirectory() as tmp:
         out = Path(tmp) / "export"
         say(f"step exporting {hf_id} ({task}) with Optimum")
-        main_export(hf_id, output=out, task=task, opset=17, do_validation=False)
+        main_export(hf_id, output=out, task=task, opset=17, do_validation=False, revision=revision)
         # A fast tokenizer's tokenizer.json, which the page reads.
         try:
-            AutoTokenizer.from_pretrained(hf_id).save_pretrained(out)
+            AutoTokenizer.from_pretrained(hf_id, revision=revision).save_pretrained(out)
         except Exception as error:  # noqa: BLE001 - some checkpoints ship one already
             say(f"step tokenizer kept as exported ({type(error).__name__})")
         for precision_out in ("float32", "int8"):
@@ -283,9 +285,12 @@ def prepare(name: str, precision: str) -> Path:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("name")
-    parser.add_argument("--precision", default="float32")
+    parser.add_argument("--precision", default="float32", choices=["float32", "float16", "int8", "int4", "int4_float16"])
     parser.add_argument("--chunk-mb", type=int, default=1024, help="the largest weight file written (MB)")
     args = parser.parse_args()
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*(/[A-Za-z0-9][A-Za-z0-9._-]*)?", args.name):
+        say("error bad model name")
+        raise SystemExit(2)
     global CHUNK_MB
     CHUNK_MB = args.chunk_mb
     try:

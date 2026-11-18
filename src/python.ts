@@ -2,8 +2,8 @@
 
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, promises as fs } from "node:fs";
-import { join } from "node:path";
+import { existsSync, statSync, promises as fs } from "node:fs";
+import { delimiter, dirname, isAbsolute, join, resolve } from "node:path";
 
 import type { Logger } from "./http.js";
 import { pythonEnvRoot, scriptsRoot } from "./paths.js";
@@ -61,7 +61,36 @@ interface Interpreter {
   version: string;
 }
 
-/** A command's output, whole; rejects when it cannot start. */
+/**
+ * Lines of a child's output kept (the last ones): an export prints a lot, and only its end is read.
+ */
+const MAX_LINES = 2000;
+
+/**
+ * `name` found on `PATH`, as an absolute path, never in the current folder: on Windows a bare name
+ * is looked up in the working directory first, so a server started in a folder holding a planted
+ * `python.exe` would run it. Relative `PATH` entries are skipped for the same reason.
+ */
+export function whichOnPath(name: string, env: NodeJS.ProcessEnv = process.env): string | null {
+  if (isAbsolute(name)) return existsSync(name) ? name : null;
+  if (name.includes("/") || name.includes("\\")) return null;
+  const cwd = resolve(process.cwd());
+  const extensions = process.platform === "win32" ? (env["PATHEXT"] ?? ".EXE;.CMD;.BAT;.COM").split(";").filter(Boolean) : [""];
+  for (const dir of (env["PATH"] ?? env["Path"] ?? "").split(delimiter)) {
+    if (!dir || !isAbsolute(dir) || resolve(dir) === cwd) continue;
+    for (const ext of extensions) {
+      const candidate = join(dir, process.platform === "win32" && !name.toLowerCase().endsWith(ext.toLowerCase()) ? name + ext.toLowerCase() : name);
+      try {
+        if (statSync(candidate).isFile()) return candidate;
+      } catch {
+        // Not fatal: carry on.
+      }
+    }
+  }
+  return null;
+}
+
+/** A command's output (its last `MAX_LINES` lines); rejects when it cannot start or is aborted. */
 function capture(command: string, args: readonly string[], options: { onLine?: (line: string) => void; signal?: AbortSignal; env?: Record<string, string> } = {}): Promise<RunResult> {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
@@ -78,6 +107,7 @@ function capture(command: string, args: readonly string[], options: { onLine?: (
       for (const line of parts) {
         if (!line.trim()) continue;
         lines.push(line);
+        if (lines.length > MAX_LINES) lines.shift();
         options.onLine?.(line);
       }
     };
@@ -136,10 +166,16 @@ export class PythonRuntime {
     const tried: string[] = [];
     const list: [string, string[]][] = this.#named ? [[this.#named, []]] : candidates();
     let newer: Interpreter | null = null;
-    for (const [command, args] of list) {
-      const label = [command, ...args].join(" ");
-      const probe = await capture(command, [...args, "-B", "-c", "import sys; print('%d.%d.%d' % sys.version_info[:3])"]).catch(() => null);
+    for (const [name, args] of list) {
+      const label = [name, ...args].join(" ");
+      const command = whichOnPath(name);
+      if (!command) {
+        tried.push(label);
+        continue;
+      }
+      const probe = await capture(command, [...args, "-B", "-c", "import sys; print(sys.executable); print('%d.%d.%d' % sys.version_info[:3])"]).catch(() => null);
       const version = probe?.code === 0 ? probe.lines.at(-1)?.trim() : undefined;
+      const executable = probe?.code === 0 ? probe.lines.at(-2)?.trim() : undefined;
       if (!version || !/^\d+\.\d+\.\d+$/.test(version)) {
         tried.push(label);
         continue;
@@ -149,11 +185,13 @@ export class PythonRuntime {
         tried.push(`${label} (${version}, too old)`);
         continue;
       }
+
+      const found: Interpreter = executable && isAbsolute(executable) && resolve(dirname(executable)) !== resolve(process.cwd()) ? { command: executable, args: [], version } : { command, args, version };
       if (!this.#named && !below(numbers, [MAX_PREFERRED[0], MAX_PREFERRED[1] + 1])) {
-        newer ??= { command, args, version };
+        newer ??= found;
         continue;
       }
-      return { command, args, version };
+      return found;
     }
     if (newer) {
       this.#logger?.warn(`  onnxweb-server: only Python ${newer.version} found; the conversion stack may have no wheels for it yet (3.${MAX_PREFERRED[1]} or older is safer)`);
