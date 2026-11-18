@@ -254,11 +254,11 @@ export class PythonRuntime {
     const stampFile = join(this.envRoot, "onnxweb-server.json");
     const stamps = JSON.parse(await fs.readFile(stampFile, "utf8").catch(() => "{}")) as Record<string, string>;
     for (const set of sets) {
-      const file = join(this.scripts, "requirements", `${set}.txt`);
+      const file = join(this.scripts, "requirements", `${set}.lock`);
       const digest = createHash("sha256").update(await this.#requirementText(file)).digest("hex");
       if (stamps[set] === digest) continue;
       this.#logger?.info(`  onnxweb-server: installing the '${set}' Python requirements (once)`);
-      const installed = await capture(this.envPython, ["-B", "-m", "pip", "install", "--disable-pip-version-check", "--no-input", "-r", file], {
+      const installed = await capture(this.envPython, ["-B", "-m", "pip", "install", "--disable-pip-version-check", "--no-input", "--require-hashes", "-r", file], {
         onLine: (line) => {
           if (/^(Successfully|ERROR)/.test(line)) this.#logger?.info(`    pip: ${line}`);
         },
